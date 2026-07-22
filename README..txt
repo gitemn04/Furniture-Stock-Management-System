@@ -66,3 +66,28 @@ The tests cover valid and invalid furniture records, duplicate IDs, empty names,
 
 SCENARIO
 This solution is specifically designed for the Home Furniture Retail Store stock-management scenario. The product classes, sample furniture records, stock rules, low-stock alerts, inventory calculations and reports are all based on furniture retail operations.
+
+DEVELOPMENT AND TESTING EVIDENCE
+
+The system was developed progressively from basic furniture variables and
+stock allocation into a structured object-oriented solution.
+
+Development included:
+- Basic furniture variables and output
+- Stock allocation and input validation
+- Reusable programming functions
+- FurnitureItem parent class and specialised furniture subclasses
+- Inheritance and polymorphism
+- StockManager inventory operations
+- Search and category filtering
+- Low-stock monitoring and inventory-value calculations
+- Boundary and validation testing
+- Multi-file program structure
+- Automated testing using pytest
+
+FINAL TEST RESULT
+18/18 automated tests passed successfully.
+
+VERSION CONTROL
+Git and GitHub are used to maintain version-controlled development evidence
+for the Home Furniture Retail Store Stock Management System.
