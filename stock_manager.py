@@ -1,13 +1,61 @@
 # Stock management logic for the Home Furniture Retail Store
 
+import csv
+import os
+from datetime import datetime
+
+from furniture import Sofa, Table, Wardrobe
+
 
 class StockManager:
     """Manages furniture inventory for the home furniture retail store."""
 
     LOW_STOCK_THRESHOLD = 3
 
-    def __init__(self):
+    def __init__(self, audit_log_path="data/stock_audit.log"):
         self.inventory = []
+        self.audit_log_path = audit_log_path
+
+    # ---------------------------------------------------------
+    # AUDIT LOGGING
+    # ---------------------------------------------------------
+
+    def write_audit_log(self, action, item, details):
+        """Record important furniture-stock operations with a timestamp."""
+
+        try:
+            log_directory = os.path.dirname(self.audit_log_path)
+
+            if log_directory:
+                os.makedirs(log_directory, exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            log_entry = (
+                f"{timestamp} | "
+                f"{action} | "
+                f"{item.furniture_id} | "
+                f"{item.name} | "
+                f"{details}\n"
+            )
+
+            with open(
+                self.audit_log_path,
+                "a",
+                encoding="utf-8"
+            ) as log_file:
+                log_file.write(log_entry)
+
+            return True
+
+        except OSError:
+            # Stock operations should not crash if the audit file
+            # cannot be written.
+            return False
+
+    # ---------------------------------------------------------
+    # FURNITURE ENTRY AND VALIDATION
+    # ---------------------------------------------------------
 
     def add_furniture(self, furniture):
         """Add validated furniture while preventing invalid records."""
@@ -38,6 +86,10 @@ class StockManager:
 
         return True, f"{furniture.name} added successfully."
 
+    # ---------------------------------------------------------
+    # SEARCHING AND FILTERING
+    # ---------------------------------------------------------
+
     def search_inventory(self, search_term):
         """Search furniture by ID, partial name, or category."""
 
@@ -65,6 +117,21 @@ class StockManager:
             if item.category.lower() == category.strip().lower()
         ]
 
+    def find_by_id(self, furniture_id):
+        """Return one furniture item using its exact ID."""
+
+        furniture_id = furniture_id.strip().lower()
+
+        for item in self.inventory:
+            if item.furniture_id.lower() == furniture_id:
+                return item
+
+        return None
+
+    # ---------------------------------------------------------
+    # STOCK ALLOCATION
+    # ---------------------------------------------------------
+
     def allocate_stock(self, furniture_id, requested_quantity):
         """Allocate furniture without allowing invalid stock changes."""
 
@@ -84,11 +151,25 @@ class StockManager:
 
         item.quantity -= requested_quantity
 
+        # Record successful furniture allocation in the audit log
+        self.write_audit_log(
+            "ALLOCATION",
+            item,
+            (
+                f"Allocated: {requested_quantity} | "
+                f"Remaining stock: {item.quantity}"
+            )
+        )
+
         return (
             True,
             f"Allocation successful: {item.name}. "
             f"Remaining stock: {item.quantity}"
         )
+
+    # ---------------------------------------------------------
+    # STOCK UPDATES / DELIVERIES
+    # ---------------------------------------------------------
 
     def update_stock(self, furniture_id, additional_quantity):
         """Add newly received furniture stock."""
@@ -103,22 +184,25 @@ class StockManager:
 
         item.quantity += additional_quantity
 
+        # Record successful furniture delivery in the audit log
+        self.write_audit_log(
+            "STOCK UPDATE",
+            item,
+            (
+                f"Added: {additional_quantity} | "
+                f"New stock: {item.quantity}"
+            )
+        )
+
         return (
             True,
             f"Stock updated: {item.name}. "
             f"New quantity: {item.quantity}"
         )
 
-    def find_by_id(self, furniture_id):
-        """Return one furniture item using its exact ID."""
-
-        furniture_id = furniture_id.strip().lower()
-
-        for item in self.inventory:
-            if item.furniture_id.lower() == furniture_id:
-                return item
-
-        return None
+    # ---------------------------------------------------------
+    # STOCK CALCULATIONS
+    # ---------------------------------------------------------
 
     def calculate_stock_value(self, item):
         """Calculate the current value of one furniture product."""
@@ -140,6 +224,10 @@ class StockManager:
             return "LOW STOCK"
 
         return "IN STOCK"
+
+    # ---------------------------------------------------------
+    # INVENTORY REPORTING
+    # ---------------------------------------------------------
 
     def generate_report(self):
         """Return a detailed furniture inventory report."""
@@ -195,3 +283,284 @@ class StockManager:
         lines.append(f"Total Units: {total_units}")
 
         return "\n".join(lines)
+
+    # ---------------------------------------------------------
+    # CSV PERSISTENCE - SAVE INVENTORY
+    # ---------------------------------------------------------
+
+    def save_inventory_to_csv(
+        self,
+        file_path="data/furniture_inventory.csv"
+    ):
+        """Save the current furniture inventory to a CSV file."""
+
+        file_directory = os.path.dirname(file_path)
+
+        if file_directory:
+            os.makedirs(file_directory, exist_ok=True)
+
+        try:
+            with open(
+                file_path,
+                "w",
+                newline="",
+                encoding="utf-8"
+            ) as csv_file:
+
+                writer = csv.writer(csv_file)
+
+                writer.writerow(
+                    [
+                        "furniture_type",
+                        "furniture_id",
+                        "name",
+                        "category",
+                        "price",
+                        "quantity",
+                        "special_value"
+                    ]
+                )
+
+                for item in self.inventory:
+
+                    if isinstance(item, Sofa):
+                        furniture_type = "Sofa"
+                        special_value = item.seating_capacity
+
+                    elif isinstance(item, Table):
+                        furniture_type = "Table"
+                        special_value = item.material
+
+                    elif isinstance(item, Wardrobe):
+                        furniture_type = "Wardrobe"
+                        special_value = item.number_of_doors
+
+                    else:
+                        furniture_type = "FurnitureItem"
+                        special_value = ""
+
+                    writer.writerow(
+                        [
+                            furniture_type,
+                            item.furniture_id,
+                            item.name,
+                            item.category,
+                            item.price,
+                            item.quantity,
+                            special_value
+                        ]
+                    )
+
+            return True, f"Inventory saved successfully to {file_path}."
+
+        except OSError as error:
+            return False, f"Unable to save inventory: {error}"
+
+    # ---------------------------------------------------------
+    # CSV PERSISTENCE - LOAD INVENTORY
+    # ---------------------------------------------------------
+
+    def load_inventory_from_csv(
+        self,
+        file_path="data/furniture_inventory.csv"
+    ):
+        """Load furniture inventory from a CSV file."""
+
+        if not os.path.exists(file_path):
+            return False, "Inventory CSV file was not found."
+
+        loaded_inventory = []
+        skipped_rows = 0
+
+        try:
+            with open(
+                file_path,
+                "r",
+                newline="",
+                encoding="utf-8"
+            ) as csv_file:
+
+                reader = csv.DictReader(csv_file)
+
+                required_headers = {
+                    "furniture_type",
+                    "furniture_id",
+                    "name",
+                    "category",
+                    "price",
+                    "quantity",
+                    "special_value"
+                }
+
+                if reader.fieldnames is None:
+                    return False, "Inventory CSV file has no headers."
+
+                if not required_headers.issubset(set(reader.fieldnames)):
+                    return False, "Inventory CSV file has invalid headers."
+
+                for row in reader:
+
+                    try:
+                        furniture_type = row[
+                            "furniture_type"
+                        ].strip()
+
+                        furniture_id = row[
+                            "furniture_id"
+                        ].strip()
+
+                        name = row[
+                            "name"
+                        ].strip()
+
+                        price = float(
+                            row["price"]
+                        )
+
+                        quantity = int(
+                            row["quantity"]
+                        )
+
+                        special_value = row[
+                            "special_value"
+                        ].strip()
+
+                        if furniture_type == "Sofa":
+                            item = Sofa(
+                                furniture_id,
+                                name,
+                                price,
+                                quantity,
+                                int(special_value)
+                            )
+
+                        elif furniture_type == "Table":
+                            item = Table(
+                                furniture_id,
+                                name,
+                                price,
+                                quantity,
+                                special_value
+                            )
+
+                        elif furniture_type == "Wardrobe":
+                            item = Wardrobe(
+                                furniture_id,
+                                name,
+                                price,
+                                quantity,
+                                int(special_value)
+                            )
+
+                        else:
+                            skipped_rows += 1
+                            continue
+
+                        # Reuse existing validation before accepting loaded data
+                        temp_manager = StockManager(
+                            audit_log_path=self.audit_log_path
+                        )
+
+                        temp_manager.inventory = (
+                            loaded_inventory.copy()
+                        )
+
+                        success, _ = (
+                            temp_manager.add_furniture(item)
+                        )
+
+                        if success:
+                            loaded_inventory.append(item)
+
+                        else:
+                            skipped_rows += 1
+
+                    except (
+                        ValueError,
+                        TypeError,
+                        KeyError
+                    ):
+                        # Skip damaged furniture records instead of
+                        # crashing the whole retailer inventory system.
+                        skipped_rows += 1
+
+            self.inventory = loaded_inventory
+
+            return (
+                True,
+                f"Inventory loaded successfully. "
+                f"{len(loaded_inventory)} item(s) loaded; "
+                f"{skipped_rows} invalid row(s) skipped."
+            )
+
+        except OSError as error:
+            return False, f"Unable to load inventory: {error}"
+        
+        # ---------------------------------------------------------
+# TC23 - STOCK ALLOCATION CREATES AUDIT LOG
+# ---------------------------------------------------------
+
+def test_tc23_allocation_creates_audit_log(tmp_path):
+    log_file = tmp_path / "stock_audit.log"
+
+    store = StockManager(
+        audit_log_path=str(log_file)
+    )
+
+    store.add_furniture(
+        Sofa(
+            "F001",
+            "Corner Sofa",
+            699.00,
+            8,
+            5
+        )
+    )
+
+    success, _ = store.allocate_stock("F001", 3)
+
+    assert success is True
+    assert log_file.exists()
+
+    log_content = log_file.read_text(encoding="utf-8")
+
+    assert "ALLOCATION" in log_content
+    assert "F001" in log_content
+    assert "Corner Sofa" in log_content
+    assert "Allocated: 3" in log_content
+    assert "Remaining stock: 5" in log_content
+
+
+# ---------------------------------------------------------
+# TC24 - STOCK UPDATE CREATES AUDIT LOG
+# ---------------------------------------------------------
+
+def test_tc24_stock_update_creates_audit_log(tmp_path):
+    log_file = tmp_path / "stock_audit.log"
+
+    store = StockManager(
+        audit_log_path=str(log_file)
+    )
+
+    store.add_furniture(
+        Wardrobe(
+            "F003",
+            "Three-Door Wardrobe",
+            799.00,
+            2,
+            3
+        )
+    )
+
+    success, _ = store.update_stock("F003", 5)
+
+    assert success is True
+    assert log_file.exists()
+
+    log_content = log_file.read_text(encoding="utf-8")
+
+    assert "STOCK UPDATE" in log_content
+    assert "F003" in log_content
+    assert "Three-Door Wardrobe" in log_content
+    assert "Added: 5" in log_content
+    assert "New stock: 7" in log_content

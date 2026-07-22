@@ -131,7 +131,7 @@ def test_tc07_over_allocation():
 
 
 def test_tc08_exact_stock_allocation():
-    """TC08 - Allocating the exact available quantity leaves zero."""
+    """TC08 - Allocating exact available quantity leaves zero."""
 
     store = StockManager()
 
@@ -253,7 +253,7 @@ def test_tc16_stock_value_calculation():
 
 
 def test_tc17_filter_by_category():
-    """TC17 - Category filtering returns only matching furniture."""
+    """TC17 - Category filtering returns matching furniture."""
 
     store = create_test_store()
 
@@ -264,7 +264,7 @@ def test_tc17_filter_by_category():
 
 
 def test_tc18_category_report():
-    """TC18 - Category report calculates furniture units correctly."""
+    """TC18 - Category report calculates furniture units."""
 
     store = create_test_store()
 
@@ -278,3 +278,248 @@ def test_tc18_category_report():
     assert "Corner Sofa" in report
     assert "Two-Seater Sofa" in report
     assert "Total Units: 11" in report
+
+
+# ---------------------------------------------------------
+# TC19 - SAVE INVENTORY TO CSV
+# ---------------------------------------------------------
+
+def test_tc19_save_inventory_to_csv(tmp_path):
+    """TC19 - Furniture inventory can be saved to CSV."""
+
+    store = StockManager()
+
+    sofa = Sofa(
+        "F001",
+        "Corner Sofa",
+        699.00,
+        8,
+        5
+    )
+
+    success, _ = store.add_furniture(sofa)
+
+    assert success is True
+
+    test_file = tmp_path / "furniture_inventory.csv"
+
+    success, message = store.save_inventory_to_csv(
+        str(test_file)
+    )
+
+    assert success is True
+    assert test_file.exists()
+    assert "saved successfully" in message.lower()
+
+
+# ---------------------------------------------------------
+# TC20 - LOAD INVENTORY FROM CSV
+# ---------------------------------------------------------
+
+def test_tc20_load_inventory_from_csv(tmp_path):
+    """TC20 - Saved furniture inventory can be restored."""
+
+    original_store = StockManager()
+
+    original_store.add_furniture(
+        Sofa(
+            "F001",
+            "Corner Sofa",
+            699.00,
+            8,
+            5
+        )
+    )
+
+    test_file = tmp_path / "furniture_inventory.csv"
+
+    save_success, _ = original_store.save_inventory_to_csv(
+        str(test_file)
+    )
+
+    assert save_success is True
+
+    loaded_store = StockManager()
+
+    load_success, _ = loaded_store.load_inventory_from_csv(
+        str(test_file)
+    )
+
+    assert load_success is True
+    assert len(loaded_store.inventory) == 1
+    assert loaded_store.inventory[0].furniture_id == "F001"
+    assert loaded_store.inventory[0].name == "Corner Sofa"
+    assert loaded_store.inventory[0].quantity == 8
+
+
+# ---------------------------------------------------------
+# TC21 - MALFORMED CSV DATA HANDLED SAFELY
+# ---------------------------------------------------------
+
+def test_tc21_malformed_csv_handled_safely(tmp_path):
+    """TC21 - Invalid CSV data does not crash the system."""
+
+    test_file = tmp_path / "damaged_inventory.csv"
+
+    test_file.write_text(
+        "furniture_type,furniture_id,name,category,"
+        "price,quantity,special_value\n"
+        "Sofa,F999,Damaged Sofa,Sofas,"
+        "INVALID_PRICE,5,3\n",
+        encoding="utf-8"
+    )
+
+    store = StockManager()
+
+    success, message = store.load_inventory_from_csv(
+        str(test_file)
+    )
+
+    assert success is True
+    assert len(store.inventory) == 0
+    assert "1 invalid row(s) skipped" in message
+
+
+# ---------------------------------------------------------
+# TC22 - CSV SAVE AND LOAD ROUND TRIP
+# ---------------------------------------------------------
+
+def test_tc22_csv_persistence_round_trip(tmp_path):
+    """TC22 - All furniture types survive save/load."""
+
+    original_store = StockManager()
+
+    original_store.add_furniture(
+        Sofa(
+            "F001",
+            "Corner Sofa",
+            699.00,
+            8,
+            5
+        )
+    )
+
+    original_store.add_furniture(
+        Table(
+            "F002",
+            "Oak Dining Table",
+            599.00,
+            10,
+            "Oak"
+        )
+    )
+
+    original_store.add_furniture(
+        Wardrobe(
+            "F003",
+            "Three-Door Wardrobe",
+            799.00,
+            2,
+            3
+        )
+    )
+
+    test_file = tmp_path / "furniture_inventory.csv"
+
+    save_success, _ = original_store.save_inventory_to_csv(
+        str(test_file)
+    )
+
+    assert save_success is True
+
+    restored_store = StockManager()
+
+    load_success, _ = restored_store.load_inventory_from_csv(
+        str(test_file)
+    )
+
+    assert load_success is True
+    assert len(restored_store.inventory) == 3
+
+    assert restored_store.find_by_id("F001").quantity == 8
+    assert restored_store.find_by_id("F002").material == "Oak"
+    assert restored_store.find_by_id("F003").number_of_doors == 3
+
+
+# ---------------------------------------------------------
+# TC23 - STOCK ALLOCATION CREATES AUDIT LOG
+# ---------------------------------------------------------
+
+def test_tc23_allocation_creates_audit_log(tmp_path):
+    """TC23 - Successful allocation creates an audit record."""
+
+    log_file = tmp_path / "stock_audit.log"
+
+    store = StockManager(
+        audit_log_path=str(log_file)
+    )
+
+    store.add_furniture(
+        Sofa(
+            "F001",
+            "Corner Sofa",
+            699.00,
+            8,
+            5
+        )
+    )
+
+    success, _ = store.allocate_stock(
+        "F001",
+        3
+    )
+
+    assert success is True
+    assert log_file.exists()
+
+    log_content = log_file.read_text(
+        encoding="utf-8"
+    )
+
+    assert "ALLOCATION" in log_content
+    assert "F001" in log_content
+    assert "Corner Sofa" in log_content
+    assert "Allocated: 3" in log_content
+    assert "Remaining stock: 5" in log_content
+
+
+# ---------------------------------------------------------
+# TC24 - STOCK UPDATE CREATES AUDIT LOG
+# ---------------------------------------------------------
+
+def test_tc24_stock_update_creates_audit_log(tmp_path):
+    """TC24 - Successful stock delivery creates audit record."""
+
+    log_file = tmp_path / "stock_audit.log"
+
+    store = StockManager(
+        audit_log_path=str(log_file)
+    )
+
+    store.add_furniture(
+        Wardrobe(
+            "F003",
+            "Three-Door Wardrobe",
+            799.00,
+            2,
+            3
+        )
+    )
+
+    success, _ = store.update_stock(
+        "F003",
+        5
+    )
+
+    assert success is True
+    assert log_file.exists()
+
+    log_content = log_file.read_text(
+        encoding="utf-8"
+    )
+
+    assert "STOCK UPDATE" in log_content
+    assert "F003" in log_content
+    assert "Three-Door Wardrobe" in log_content
+    assert "Added: 5" in log_content
+    assert "New stock: 7" in log_content

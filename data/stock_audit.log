@@ -1,0 +1,13 @@
+2026-07-22 17:10:26 | ALLOCATION | F001 | Corner Sofa | Allocated: 3 | Remaining stock: 5
+2026-07-22 17:10:26 | ALLOCATION | F007 | Display Sofa | Allocated: 3 | Remaining stock: 0
+2026-07-22 17:10:26 | STOCK UPDATE | F003 | Three-Door Wardrobe | Added: 5 | New stock: 7
+2026-07-22 17:11:53 | ALLOCATION | F001 | Corner Sofa | Allocated: 3 | Remaining stock: 5
+2026-07-22 17:11:53 | ALLOCATION | F007 | Display Sofa | Allocated: 3 | Remaining stock: 0
+2026-07-22 17:11:53 | STOCK UPDATE | F003 | Three-Door Wardrobe | Added: 5 | New stock: 7
+2026-07-22 17:17:20 | ALLOCATION | F001 | Corner Sofa | Allocated: 3 | Remaining stock: 5
+2026-07-22 17:17:20 | ALLOCATION | F007 | Display Sofa | Allocated: 3 | Remaining stock: 0
+2026-07-22 17:17:20 | STOCK UPDATE | F003 | Three-Door Wardrobe | Added: 5 | New stock: 7
+2026-07-22 17:20:20 | ALLOCATION | F001 | Corner Sofa | Allocated: 3 | Remaining stock: 5
+2026-07-22 17:20:20 | STOCK UPDATE | F003 | Three-Door Wardrobe | Added: 5 | New stock: 7
+2026-07-22 17:22:14 | ALLOCATION | F001 | Corner Sofa | Allocated: 3 | Remaining stock: 5
+2026-07-22 17:22:14 | STOCK UPDATE | F003 | Three-Door Wardrobe | Added: 5 | New stock: 7
